@@ -1,4 +1,4 @@
-# Comparing-Forecast-Comparison
+# Comparing-Forecast-Performance
 
 This is the repository for the paper `Inference about differences in predictive skill between infectious disease forecasting models`
 
