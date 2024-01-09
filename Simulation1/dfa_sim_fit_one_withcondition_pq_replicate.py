@@ -7,8 +7,6 @@ import time
 import jax
 import numpy as np
 from archdfa import ARCHDFA
-from archdfa import log_likelihoods
-from archdfa import log_likelihoods_bar
 
 # ensure that the path where we will save model fits exists
 #save_path = pathlib.Path('/work/pi_nick_umass_edu/simulation/ardfa_fits')
@@ -109,39 +107,21 @@ def run_simstudy_replicate(sample_size, theta, p, q, num_factors, condition, rep
                                 rng_key = get_rng_key(sample_size, theta, condition, replicate),
                                 num_warmup=10000, num_samples=num_samples, num_chains=num_chains, thinning = thinning)
   
-    # calculate DIC
-    start = time.time() 
-    intercept = mcmc_samples['intercept']
-    zHmean = mcmc_samples['zHmean']
-    Omega_tl = mcmc_samples['Omega_tl']
-    llhood = log_likelihoods(intercept, zHmean, Omega_tl, obs, num_samples, num_chains, thinning)
-    #print(llhood.shape)
-
-    D_bar = np.mean(-2*np.sum(llhood, axis = (1,2)))
-    print(D_bar)
-
-    post_means_est = {
-        param: np.mean(mcmc_samples[param], axis=0)[np.newaxis, ...] \
-            for param in ['intercept', 'zHmean', 'Omega_tl']
-    }
-
-    D_theta_bar = log_likelihoods_bar(post_means_est, obs)
-    n_par_eff_est = D_bar - D_theta_bar
-    DIC_est = n_par_eff_est + D_bar
-    print(DIC_est)
-    print('\nDIC calculation time:', time.time() - start)
-
+    
     # save samples and mcmc summary
+    
     with open(samples_file, 'wb') as f:
         pickle.dump(
-            {k: mcmc_samples[k] for k in ['intercept', 'zHmean', 'Omega_tl']},
+            {k: mcmc_samples[k] for k in ['intercept', 'phi', 'alpha', 'ARVar_mu', 
+                                        'beta0', 'beta1', 'log_sigma_eta', 'Psi_a', 'Psi_b', 
+                                        'h_rho', 'log_sigma_eps_t', 'sigma_eps_l',
+                                        'zHmean', 'Omega_tl']},
             f)
 
     orig_stdout = sys.stdout
     with open(summary_file, 'w') as f:
         sys.stdout = f
         dfa_model.mcmc.print_summary()
-        print(f"DIC_est: {DIC_est}")
     sys.stdout = orig_stdout
 
 
@@ -175,7 +155,7 @@ if __name__ == "__main__":
                         default=0)
     parser.add_argument('--replicate', type=int,
                         help='integer index of simulation replicate',
-                        choices=list(range(50)),
+                        choices=list(range(100)),
                         default=0)
                         
     args = parser.parse_args()
