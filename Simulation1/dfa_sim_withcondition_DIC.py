@@ -15,7 +15,7 @@ from archdfa import log_likelihoods_bar
 def choose_best_model(sample_size, theta, condition, ps=[1,2,3], qs = [1,2,3], num_factors = [2,3,4,5,6], num_samples=10000, num_chains=3, thinning=10):
     records = []
     save_path = pathlib.Path('simulation/ardfa_ARVar_fits_pq')
-    for replicate in range(2):
+    for replicate in range(10):
         # load simulated data
         with open(f'simulation/ardfa_samples/{sample_size}_{theta}_{condition}.pkl', 'rb') as f:
             obs = pickle.load(f)['y'][replicate, ...]
@@ -38,7 +38,7 @@ def choose_best_model(sample_size, theta, condition, ps=[1,2,3], qs = [1,2,3], n
                         intercept = mcmc_samples['intercept']
                         zHmean = mcmc_samples['zHmean']
                         Omega_tl = mcmc_samples['Omega_tl']
-                        llhood = log_likelihoods(intercept, zHmean, Omega_tl, obs, num_samples, num_chains, thinning)
+                        llhood = log_likelihoods1(intercept, zHmean, Omega_tl, obs, num_samples, num_chains, thinning)
                         
                         D_bar = np.mean(-2*np.sum(llhood, axis = (1,2)))
 
@@ -47,7 +47,7 @@ def choose_best_model(sample_size, theta, condition, ps=[1,2,3], qs = [1,2,3], n
                                 for param in ['intercept', 'zHmean', 'Omega_tl']
                         }
 
-                        D_theta_bar = log_likelihoods_bar(post_means_est, obs)
+                        D_theta_bar = log_likelihoods_bar1(post_means_est, obs)
                         n_par_eff_est = D_bar - D_theta_bar
                         DIC_est = n_par_eff_est + D_bar
                         running_time = time.time() - start
