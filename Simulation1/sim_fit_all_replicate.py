@@ -34,7 +34,7 @@ def submit_jobs(test_run):
         
                     cmd = f'module load miniconda/22.11.1-1\n' \
                         f'conda activate forecastskill\n' \
-                        f'python dfa_sim_fit_one_withcondition_replicate.py --sample_size {sample_size} --theta {theta} --condition {condition} --replicate {replicate}'
+                        f'python sim_fit_one_replicate.py --sample_size {sample_size} --theta {theta} --condition {condition} --replicate {replicate}'
                     print(f"Launching {name}")
                     
                     sh_contents = f'#!/bin/bash\n' \
