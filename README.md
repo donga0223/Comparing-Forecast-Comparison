@@ -11,3 +11,11 @@ This is the repository for the paper `Inference about differences in predictive 
 [Simulation3](https://github.com/donga0223/Comparing-Forecast-Comparison/tree/main/Simulation3) contains Python code for simulating data. However, it's a simplified model with only one location and one horizon. The data is generated using our proposed model (ARHDFA) and Dynamic Factor Analysis (DFA), where DFA does not include heteroskedasticity. The code also includes fitting the simulated data using ARHDFA, DFA, Diebold Mariano test (DM-test), and Circular Block Bootstrap (CBB).
 
 [Application](https://github.com/donga0223/Comparing-Forecast-Comparison/tree/main/Application) contains python code to fit the model to real data.
+
+## Python environment
+
+We have used conda for environment management. To install the conda environment, run the following command with the repository root as your working directory:
+
+```
+conda env create -f environment.yml
+```

@@ -1,0 +1,12 @@
+name: forecastskill
+channels:
+  - defaults
+dependencies:
+  - python=3.10.4
+  - numpy=1.22.3
+  - pandas=1.5.3
+  - matplotlib=3.7.1
+  - pip
+  - pip:
+    - numpyro==0.13.2
+    - "--editable=git+https://github.com/donga0223/arhdfapy.git#egg=arhdfa"
