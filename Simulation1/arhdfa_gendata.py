@@ -50,7 +50,8 @@ class ARCHDFA():
         p: integer
             Order of autoregressive processes for latent factors; defaults to 1
         q: integer
-            Order of autoregressive processes for error of latent factors; defaults to 1
+            Order of autoregressive processes for error of latent factors; 
+            defaults to 1
         intercept_by_series: boolean
             If True, estimate a separate intercept for each series. Otherwise,
             estimate a single intercept that is shared across all series.
@@ -131,7 +132,8 @@ class ARCHDFA():
             raise ValueError('Must provide either y or three of num_timesteps, num_series and num_horizons')
         
         #if self.num_timesteps is None or self.num_series is None or self.num_horizons in None:
-        #    raise ValueError('Must provide either y or all three of num_timesteps, num_series and num_horizons')
+        #    raise ValueError('Must provide either y or all three of num_timesteps, 
+        #    num_series and num_horizons')
         
         # intercept for observation model, series-specific if requested
         # arranged as row vector for later broadcasting across timesteps
@@ -155,7 +157,8 @@ class ARCHDFA():
             dist.Beta(3, 3),
             sample_shape=(1, self.p))
         
-        # mean (ARVar_mu) and ar coefficients (alpha) of the variance of the error term in the latent factor analysis 
+        # mean (ARVar_mu) and ar coefficients (alpha) of the variance of 
+        #      the error term in the latent factor analysis 
         ARVar_mu = numpyro.sample(
             'ARVar_mu', 
             dist.Normal(-1.5,1.0),
@@ -169,7 +172,8 @@ class ARCHDFA():
 
         alpha0 = ARVar_mu*(1-jnp.sum(alpha))
 
-        # The variance of innovations in the AR process for the variance of the error term in the latent factor analysis
+        # The variance of innovations in the AR process for the variance of 
+        #   the error term in the latent factor analysis
         sigma_nu = numpyro.sample(
             'sigma_nu',
             dist.Gamma(3,6),
@@ -212,7 +216,8 @@ class ARCHDFA():
             dist.Normal(0, 1),
             sample_shape=(self.p, self.num_factors))
         
-        # initial values for error variance of latent factors, q time steps before time 0
+        # initial values for error variance of latent factors, q time steps 
+        #   before time 0
         log_sigma_eta_0 = numpyro.sample(
             'log_sigma_eta_0',
             dist.HalfNormal(1),
@@ -272,24 +277,30 @@ class ARCHDFA():
                 error variance at time t
             '''
 
-            # calculate the mean for the error variance of the factors at time t, shape (1, 1, 1)
+            # calculate the mean for the error variance of the factors at time t
+            #   , shape (1, 1, 1)
             log_sigma_mu_t = (jnp.matmul(alpha, log_sigma_eta_prev)+alpha0)
 
             # sample variances at time t, shape (1, 1, 1)
-            log_sigma_eta = numpyro.sample('log_sigma_eta', dist.Normal(log_sigma_mu_t, sigma_nu))
+            log_sigma_eta = numpyro.sample('log_sigma_eta', 
+                                           dist.Normal(log_sigma_mu_t, sigma_nu))
             # updated variances for the q time steps ending at time t
             # shape (q, 1), first row is for time t
-            log_sigma_eta_tt = jnp.concatenate((log_sigma_eta, log_sigma_eta_prev[:-1, :]), axis=0)
+            log_sigma_eta_tt = jnp.concatenate((log_sigma_eta, 
+                                                log_sigma_eta_prev[:-1, :]), axis=0)
 
             return log_sigma_eta_tt, log_sigma_eta[0, :]
         
         
         timesteps = jnp.arange(self.num_timesteps)       
 
-        # standard deviation of innovations in AR process for latent factors (num_timepoints, 1)
+        # standard deviation of innovations in AR process for latent factors
+        #   (num_timepoints, 1)
         if self.sigma_factors_model == 'constant':
             log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.HalfNormal(1))
-            #log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(ARVar_mu, jnp.sqrt(sigma_nu**2/(1-alpha**2))))### Normal(ARVarmu, sigma_nu^2/(1-alpha^2))
+            #log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', 
+            #       dist.Normal(ARVar_mu, jnp.sqrt(sigma_nu**2/(1-alpha**2))))
+            #       Normal(ARVarmu, sigma_nu^2/(1-alpha^2))
             #log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.HalfNormal(1))
         elif self.sigma_factors_model == 'AR':
              _, log_sigma_eta_t = scan(transition_ARvar, log_sigma_eta_0, timesteps)
@@ -321,9 +332,11 @@ class ARCHDFA():
             # sample factors at time t, shape (1, num_factors)
             if self.sigma_factors_model == 'constant':
                 #factors_t = m_t + jnp.exp(log_sigma_eta_t) * factors_t_raw[timepoint, :]
-                factors_t = numpyro.sample('factors', dist.Normal(m_t, jnp.exp(log_sigma_eta_t)))
+                factors_t = numpyro.sample('factors', dist.Normal(m_t, 
+                                                        jnp.exp(log_sigma_eta_t)))
             elif self.sigma_factors_model == 'AR':
-                factors_t = numpyro.sample('factors', dist.Normal(m_t, jnp.exp(log_sigma_eta_t[timepoint,0])))
+                factors_t = numpyro.sample('factors', dist.Normal(m_t, 
+                                                        jnp.exp(log_sigma_eta_t[timepoint,0])))
 
 
             # updated factors for the p time steps ending at time t
@@ -337,7 +350,8 @@ class ARCHDFA():
 
         # observation model for y 
         ## zHmean is z times H (num_timepoints, num_series)
-        ## zHmean add one more dimension for the horizon. It is duplicated becasue the means are the same 
+        ## zHmean add one more dimension for the horizon. It is duplicated 
+        ##      becasue the means are the same 
         ## (num_horizons, num_timepoints, num_series)
         ## zHmean_trans transpose the order. (num_timepoints, num_series, num_horizons)
         zHmean = jnp.matmul(z_t, jnp.transpose(factor_loadings))
@@ -424,7 +438,8 @@ class ARCHDFA():
             num_chains=num_chains,
             progress_bar=False if 'NUMPYRO_SPHINXBUILD' in os.environ else True,
         )
-        self.mcmc.run(rng_key, y=y, nan_inds=jnp.nonzero(jnp.isnan(y)), num_nans=int(jnp.isnan(y).sum()))
+        self.mcmc.run(rng_key, y=y, nan_inds=jnp.nonzero(jnp.isnan(y)), 
+                      num_nans=int(jnp.isnan(y).sum()))
         print('\nMCMC elapsed time:', time.time() - start)
         
         if print_summary:
