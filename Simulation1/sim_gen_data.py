@@ -6,7 +6,7 @@ import pickle
 import jax
 import jax.numpy as jnp
 
-from archdfa_gendata import ARCHDFA
+from arhdfa_gendata import ARCHDFA
 
 save_path = pathlib.Path('simulation/ardfa_samples')
 if not save_path.exists():
