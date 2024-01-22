@@ -1,19 +1,14 @@
+# Run with archdfa as working directory
+
 import pathlib
 import pickle
-import json
-
-from itertools import product
 
 import jax
 import jax.numpy as jnp
 
-from archdfa import ARCHDFA
+from archdfa_gendata import ARCHDFA
 
-with open('config.json') as config_json:
-    config = json.load(config_json)
-
-save_root = config['save_root']
-save_path = pathlib.Path(save_root) / 'Simulation1' / 'ardfa_samples'
+save_path = pathlib.Path('simulation/ardfa_samples')
 if not save_path.exists():
     save_path.mkdir(parents=True)
 
@@ -72,82 +67,98 @@ seeds = {
     }  
 }
 
-all_settings = product(
-    ['small'],
-    ['all_vary', 'sigma_t_vary', 'sigma_l_vary', 'sigma_h_vary', 'all_constant'],
-    ['0.0', '1.0', '10.0'])
+for samp_size in ['small']:
+    # Define a DFA model with specified parameter values to use for data generation
+    for condition in ['all_vary', 'sigma_t_vary', 'sigma_l_vary', 'sigma_h_vary', 'all_constant']:
+        if samp_size == 'small' and condition in ['all_vary', 'sigma_t_vary']:
+            n_location = 10
+            dfa_model = ARCHDFA(num_timesteps=52, num_series=n_location, num_horizons=4,
+                                num_factors=4, p=1, q=1, sigma_factors_model='AR', 
+                                loadings_constraint='simplex')
+        elif samp_size == 'small' and condition in ['sigma_l_vary', 'sigma_h_vary', 'all_constant']:
+            n_location = 10
+            dfa_model = ARCHDFA(num_timesteps=52, num_series=n_location, num_horizons=4,
+                                num_factors=4, p=1, q=1, sigma_factors_model='constant', 
+                                loadings_constraint='simplex')
+        elif samp_size == 'large' and condition in ['all_vary', 'sigma_t_vary']:
+            n_location = 50
+            dfa_model = ARCHDFA(num_timesteps=156, num_series=n_location, num_horizons=14, 
+                                num_factors=4, p=1, q=1, sigma_factors_model='AR', 
+                                loadings_constraint='simplex')
+        elif samp_size == 'large' and condition in ['sigma_l_vary', 'sigma_h_vary', 'all_constant']:
+            n_location = 50
+            dfa_model = ARCHDFA(num_timesteps=156, num_series=n_location, num_horizons=14, 
+                                num_factors=4, p=1, q=1, sigma_factors_model='constant', 
+                                loadings_constraint='simplex')
 
-for (samp_size, condition, theta) in all_settings:
-    if samp_size == 'small':
-        n_location = 10
-        num_timesteps = 52
-    else:
-        n_location = 50
-        num_timesteps = 156
     
-    if condition in ['all_vary', 'sigma_t_vary']:
-        sigma_factors_model='AR'
-    else:
-        sigma_factors_model='constant'
-    
-    # Define a DFA model with specified parameter values to use for data
-    # generation
-    dfa_model = ARCHDFA(num_timesteps=num_timesteps, num_series=n_location,
-                        num_horizons=4, num_factors=4, p=1, q=1,
-                        sigma_factors_model=sigma_factors_model,
-                        loadings_constraint='simplex')
-    
-    # Draw a sample of size 1000 from the model,
-    # specifying that the intercept is the given value of theta
-    if condition == 'all_vary':
-        condition_dict = {
-            'intercept': jnp.full(shape=(1000,1), fill_value=float(theta)),
-            'sigma_eps_l': jnp.full(
-                shape=(1000,n_location,1), 
-                fill_value=jnp.reshape(
-                    jnp.tile(jnp.array([0.5, 1.0, 0.3, 0.4, 0.5, 2.0, 0.6, 0.9,
-                                        1.5, 0.5]),1000),
-                    (1000,n_location,1))),
-            'Psi_b':jnp.full(shape=(1000,1), fill_value=4.0),
-        }
-    elif condition == 'sigma_t_vary':
-        condition_dict = {
-            'intercept': jnp.full(shape=(1000,1), fill_value=float(theta)),
-            'sigma_eps_l':jnp.full(shape=(1000,n_location,1), fill_value=0.5),
-            'Psi_a':jnp.full(shape=(1000,1), fill_value=1.5),
-            'Psi_b':jnp.zeros((1000,1)),
-            'h_rho':jnp.zeros((1000,1))
-        }
-    elif condition == 'sigma_l_vary':
-        condition_dict = {
-            'intercept': jnp.full(shape=(1000,1), fill_value=float(theta)),
-            'sigma_eps_l':jnp.full(
-                shape=(1000,n_location,1), 
-                fill_value=jnp.reshape(
-                    jnp.tile(jnp.array([0.5, 1.0, 0.3, 0.4, 0.5, 2.0, 0.6, 0.9,
-                                        1.5, 0.5]),1000),
-                    (1000,n_location,1))),
-            'Psi_a':jnp.full(shape=(1000,1), fill_value=1.5),
-            'Psi_b':jnp.zeros((1000,1)),
-            'h_rho':jnp.zeros((1000,1))
-        }
-    elif condition == 'sigma_h_vary':
-        condition_dict = {
-            'intercept': jnp.full(shape=(1000,1), fill_value=float(theta)),
-            'sigma_eps_l':jnp.full(shape=(1000,n_location,1), fill_value=0.5),
-            'Psi_b':jnp.full(shape=(1000,1), fill_value=4.0),
-        }
-    elif condition == 'all_constant':
-        condition_dict = {
-            'intercept': jnp.full(shape=(1000,1), fill_value=float(theta)),
-            'sigma_eps_l':jnp.full(shape=(1000,n_location,1), fill_value=0.5),
-            'Psi_a':jnp.full(shape=(1000,1), fill_value=1.5),
-            'Psi_b':jnp.zeros((1000,1)),
-            'h_rho':jnp.zeros((1000,1))
-        }
+        for theta in ['0.0', '1.0', '10.0']:
+            # Draw a sample of size 1000 from the model,
+            # specifying that the intercept is the given value of theta
+            
+            if condition == 'all_vary':
+                sample = dfa_model.sample(
+                    rng_key = jax.random.PRNGKey(seeds[samp_size][theta][condition]),
+                    condition={'intercept': jnp.full(shape=(1000,1),
+                                                    fill_value=float(theta)),
+                                'sigma_eps_l':jnp.full(shape=(1000,n_location,1), 
+                                        fill_value=jnp.reshape(jnp.tile(jnp.array([0.5, 1.0, 0.3, 0.4, 0.5, 2.0, 0.6, 0.9, 1.5, 0.5]),1000), (1000,n_location,1))),
+                                'Psi_b':jnp.full(shape=(1000,1), fill_value=4.0),
+                                })
+                with open(save_path / f'{samp_size}_{theta}_{condition}.pkl', 'wb') as f:
+                    pickle.dump(sample, f)
 
-    sample = dfa_model.sample(
-        rng_key = jax.random.PRNGKey(seeds[samp_size][theta][condition]),
-        condition = condition_dict)
-    with open(save_path / f'{samp_size}_{theta}_{condition}.pkl', 'wb') as f:
-        pickle.dump(sample, f)
+            elif condition == 'sigma_t_vary':
+                sample = dfa_model.sample(
+                    rng_key = jax.random.PRNGKey(seeds[samp_size][theta][condition]),
+                    condition={'intercept': jnp.full(shape=(1000,1),
+                                                    fill_value=float(theta)),
+                                'sigma_eps_l':jnp.full(shape=(1000,n_location,1), fill_value=0.5),
+                                'Psi_a':jnp.full(shape=(1000,1), fill_value=1.5),
+                                'Psi_b':jnp.zeros((1000,1)),
+                                'h_rho':jnp.zeros((1000,1))
+                                })
+                with open(save_path / f'{samp_size}_{theta}_{condition}.pkl', 'wb') as f:
+                    pickle.dump(sample, f)
+
+            elif condition == 'sigma_l_vary':
+                sample = dfa_model.sample(
+                    rng_key = jax.random.PRNGKey(seeds[samp_size][theta][condition]),
+                    condition={'intercept': jnp.full(shape=(1000,1),
+                                                    fill_value=float(theta)),
+                                'sigma_eps_l':jnp.full(shape=(1000,n_location,1), 
+                                        fill_value=jnp.reshape(jnp.tile(jnp.array([0.5, 1.0, 0.3, 0.4, 0.5, 2.0, 0.6, 0.9, 1.5, 0.5]),1000), (1000,n_location,1))),
+                                'Psi_a':jnp.full(shape=(1000,1), fill_value=1.5),
+                                'Psi_b':jnp.zeros((1000,1)),
+                                'h_rho':jnp.zeros((1000,1))
+                                })
+                with open(save_path / f'{samp_size}_{theta}_{condition}.pkl', 'wb') as f:
+                    pickle.dump(sample, f)
+
+            elif condition == 'sigma_h_vary':
+                sample = dfa_model.sample(
+                    rng_key = jax.random.PRNGKey(seeds[samp_size][theta][condition]),
+                    condition={'intercept': jnp.full(shape=(1000,1),
+                                                    fill_value=float(theta)),
+                                'sigma_eps_l':jnp.full(shape=(1000,n_location,1), fill_value=0.5),
+                                'Psi_b':jnp.full(shape=(1000,1), fill_value=4.0),
+                                })
+                with open(save_path / f'{samp_size}_{theta}_{condition}.pkl', 'wb') as f:
+                    pickle.dump(sample, f)
+
+            elif condition == 'all_constant':
+                sample = dfa_model.sample(
+                    rng_key = jax.random.PRNGKey(seeds[samp_size][theta][condition]),
+                    condition={'intercept': jnp.full(shape=(1000,1),
+                                                    fill_value=float(theta)),
+                                'sigma_eps_l':jnp.full(shape=(1000,n_location,1), fill_value=0.5),
+                                'Psi_a':jnp.full(shape=(1000,1), fill_value=1.5),
+                                'Psi_b':jnp.zeros((1000,1)),
+                                'h_rho':jnp.zeros((1000,1))
+                                })
+                with open(save_path / f'{samp_size}_{theta}_{condition}.pkl', 'wb') as f:
+                    pickle.dump(sample, f)
+                    
+            
+
+       
