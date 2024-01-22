@@ -7,7 +7,7 @@ from itertools import product
 import jax
 import jax.numpy as jnp
 
-from archdfa import ARCHDFA
+from arhdfa_gendata import ARCHDFA
 
 with open('config.json') as config_json:
     config = json.load(config_json)
