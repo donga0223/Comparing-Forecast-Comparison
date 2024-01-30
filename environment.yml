@@ -8,5 +8,7 @@ dependencies:
   - matplotlib=3.7.1
   - pip
   - pip:
-    - numpyro==0.13.2
+    - jax==0.4.8
+    - jaxlib==0.4.7
+    - numpyro==0.11.0
     - "--editable=git+https://github.com/donga0223/arhdfapy.git#egg=arhdfa"
