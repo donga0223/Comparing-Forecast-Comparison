@@ -57,7 +57,7 @@ score_forecasts_deaths <- score_forecasts(
 View(score_forecasts_deaths[1,])
 
 
-location <- read.csv("Data_description/locations.txt", header = TRUE)
+location <- read.csv("Data/locations.txt", header = TRUE)
 
 calculate_diff <- function(model1, model2){
   data1 <- score_forecasts_deaths %>% 
