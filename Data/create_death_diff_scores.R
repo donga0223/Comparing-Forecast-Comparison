@@ -71,7 +71,7 @@ calculate_diff <- function(model1, model2){
     left_join(location, by = "location") %>% 
     mutate(diff = wis.x - wis.y) %>%
     mutate(diff_pop = diff/(population/100000))
-  write.csv(merged_data, paste("Data/death_diff_scores/", model1, model2, ".csv", sep=""))
+  write.csv(merged_data, paste("Data/death_diff_scores/", model1, "_", model2, ".csv", sep=""))
 }
 
 for(i in 1:(length(models)-1)){
