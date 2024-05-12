@@ -266,8 +266,10 @@ class ARHDFA():
         # standard deviation of innovations in AR process for latent factors (num_timepoints, 1)
         if self.sigma_time == 'constant':
             log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(ARVar_mu, jnp.sqrt((sigma_nu**2/(1-jnp.sum(alpha**2))))))
+            #log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(0, sigma_nu))
+
         elif self.sigma_time == 'AR':
-             _, log_sigma_eta_t = scan(transition_ARvar, log_sigma_eta_0, timesteps)
+            _, log_sigma_eta_t = scan(transition_ARvar, log_sigma_eta_0, timesteps)
 
         # get AR(p) process
         def transition_AR(points_prev, timepoint):
@@ -327,7 +329,6 @@ class ARHDFA():
             #log_sigma_eta_t = jnp.reshape(log_sigma_eta_t, (1,))
             log_sigma_eps_t = numpyro.sample('log_sigma_eps_t',
                 dist.Normal(beta0+beta1*jnp.reshape(log_sigma_eta_t, (-1,)), sigma_zeta))
-            print(log_sigma_eps_t.shape)
                 #dist.Normal((beta0/(1-beta1)), jnp.sqrt(sigma_zeta**2/(1-beta1**2))),
                 #dist.HalfNormal(1), 
                 #sample_shape=(1,))
@@ -338,7 +339,6 @@ class ARHDFA():
             #The variance of different timepoints
             log_sigma_eps_t = numpyro.sample('log_sigma_eps_t',
                 dist.Normal(beta0+beta1*log_sigma_eta_t, sigma_zeta))
-            print(log_sigma_eps_t.shape)
             #log_sigma_eps_t_flat = jnp.reshape(log_sigma_eps_t, (self.num_timesteps,))
 
 
