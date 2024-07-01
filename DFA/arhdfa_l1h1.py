@@ -174,7 +174,7 @@ class ARHDFA():
             'phi',
             dist.Uniform(phi_l, phi_u),
             sample_shape=(1, self.p))
-        phi0 = intercept*(1-jnp.sum(phi))
+        #phi0 = intercept*(1-jnp.sum(phi))
         
         
         # mean (ARVar_mu) and ar coefficients (alpha) of the variance of the error term in the latent factor analysis 
@@ -199,8 +199,8 @@ class ARHDFA():
                 sample_shape=(1, self.q)
             )
             alpha0 = ARVar_mu*(1-jnp.sum(alpha))
-            log_sigma_eta_0 = numpyro.sample(
-                'log_sigma_eta_0',
+            sigma_eta_0 = numpyro.sample(
+                'sigma_eta_0',
                 dist.LogNormal(0,1),
                 sample_shape=(self.q, 1))
             #log_sigma_eta_0 = log_sigma_eta_0.squeeze(-1)
@@ -214,18 +214,50 @@ class ARHDFA():
             dist.Normal(0, 1),
             sample_shape=(self.p, 1))
         
-        log_sigma_eps = numpyro.sample(
-            'log_sigma_eps', 
-            dist.Normal(intercept,1))
+        sigma_eps = numpyro.sample(
+            'sigma_eps', 
+            dist.LogNormal(0,1))
         
-        log_sigma_nu = numpyro.sample(
-            'log_sigma_nu', 
+        sigma_nu = numpyro.sample(
+            'sigma_nu', 
             dist.LogNormal(0,1),
             sample_shape=(1,1))
+        
+        if self.num_horizons > 1:
+            h_rho = numpyro.sample(
+                'h_rho',
+                dist.Uniform(0,1),
+                sample_shape=(1,)
+            )
+
+            Psi_a = numpyro.sample(
+                'Psi_a',
+                dist.Normal(0, 1),
+                #dist.Gamma(1,1),
+                sample_shape=(1,)
+            )
+
+            Psi_b = numpyro.sample(
+                'Psi_b',
+                dist.Normal(0, 1),
+                #dist.Gamma(1,1),
+                sample_shape=(1,)
+            )
+
+            
+            # get horizon covariance based on the equations of sigma_h and matrixR 
+            # (num_horizons by num_horizons)
+            matrixR = AR1Root(h_rho, self.num_horizons)
+            #sigma_h = 1+0.5*jnp.sqrt(jnp.arange(self.num_horizons))
+            sigma_h = Psi_a+Psi_b*(jnp.arange(self.num_horizons))
+            Sigma_eps_h_chol = jnp.matmul(jnp.diag(sigma_h), matrixR)
+        
+
+
 
                 
         #get error variance of latent factors from AR(q) process
-        def transition_ARvar(log_sigma_eta_prev, _):
+        def transition_ARvar(sigma_eta_prev, _):
             '''
             ARvar function for use with scan
             
@@ -246,7 +278,7 @@ class ARHDFA():
             '''
 
             # calculate the mean for the error variance of the factors at time t, shape (1, 1)
-            log_sigma_mu_t = (jnp.matmul(alpha, log_sigma_eta_prev)+alpha0)
+            sigma_mu_t = (jnp.matmul(alpha, sigma_eta_prev)+alpha0)
 
             # calculate the mean and variance for the log-normal distribution
             #lognormal_mean = jnp.exp(log_sigma_mu_t + (log_sigma_nu / 2))
@@ -254,15 +286,15 @@ class ARHDFA():
 
 
             # sample variances at time t, shape (1, 1)
-            log_sigma_eta = numpyro.sample('log_sigma_eta', dist.LogNormal(log_sigma_mu_t, jnp.sqrt(log_sigma_nu)))
+            sigma_eta = numpyro.sample('sigma_eta', dist.LogNormal(sigma_mu_t, jnp.sqrt(sigma_nu)))
             #log_sigma_eta = numpyro.sample('log_sigma_eta', dist.LogNormal(lognormal_mean, jnp.sqrt(lognormal_variance)))
 
             # updated variances for the q time steps ending at time t
             # shape (q, 1), first row is for time t
-            log_sigma_eta_tt = jnp.concatenate((log_sigma_eta, log_sigma_eta_prev[:-1, :]), axis=0)
+            sigma_eta_tt = jnp.concatenate((sigma_eta, sigma_eta_prev[:-1, :]), axis=0)
 
 
-            return log_sigma_eta_tt, log_sigma_eta[0, :]
+            return sigma_eta_tt, sigma_eta[0, :]
         
         
         timesteps = jnp.arange(self.num_timesteps)       
@@ -270,10 +302,10 @@ class ARHDFA():
         # standard deviation of innovations in AR process for latent factors (num_timepoints, 1)
         if self.sigma_type == 'constant':
             #log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(ARVar_mu, jnp.sqrt((sigma_nu**2/(1-jnp.sum(alpha**2))))))
-            log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(ARVar_mu, jnp.sqrt(log_sigma_nu)))
+            sigma_eta_t = numpyro.sample('sigma_eta_t', dist.LogNormal(ARVar_mu, jnp.sqrt(sigma_nu)))
 
         elif self.sigma_type == 'AR':
-            _, log_sigma_eta_t = scan(transition_ARvar, log_sigma_eta_0, timesteps)
+            _, sigma_eta_t = scan(transition_ARvar, sigma_eta_0, timesteps)
 
 
         # get AR(p) process
@@ -297,13 +329,13 @@ class ARHDFA():
                 y values at time t
             '''
             # calculate the mean for the factors at time t, shape (1, 1)
-            m_t = (jnp.matmul(phi, points_prev)+phi0)
+            m_t = (jnp.matmul(phi, points_prev))#+phi0)
             
             # sample factors at time t, shape (1, 1)
             if self.sigma_type == 'constant':
-                ms_t = numpyro.sample('ms_t', dist.Normal(m_t, jnp.sqrt(jnp.exp(log_sigma_eta_t))))
+                ms_t = numpyro.sample('ms_t', dist.Normal(m_t, jnp.sqrt(sigma_eta_t)))
             elif self.sigma_type == 'AR':
-                ms_t = numpyro.sample('ms_t', dist.Normal(m_t, jnp.sqrt(jnp.exp(log_sigma_eta_t[timepoint,0]))))
+                ms_t = numpyro.sample('ms_t', dist.Normal(m_t, jnp.sqrt(sigma_eta_t[timepoint,0])))
                 
             # updated values for the p time steps ending at time t
             # shape (p, 1), first row is for time t
@@ -313,17 +345,35 @@ class ARHDFA():
         
         # scan over time steps; latent factors shape is (num_timepoints, 1)
         _, mu_t = scan(transition_AR, mu_0, timesteps)
+        mu_t_expanded = jnp.repeat(mu_t[:, :, jnp.newaxis], repeats=self.num_horizons, axis=-1)
+        
+        if self.num_horizons == 1 :
+            if nan_inds is None:
+                numpyro.sample(
+                    'y',
+                    dist.Normal(jnp.reshape(intercept + mu_t, (-1,)), jnp.sqrt(sigma_eps)),
+                    obs = y)
+            else:
+                numpyro.sample(
+                    'y',
+                    dist.Normal(intercept + mu_t[non_nan_inds, 0], jnp.sqrt(sigma_eps)),
+                    obs = y[non_nan_inds])
+                
+        elif self.num_horizons > 1:
+            if nan_inds is None:
+                numpyro.sample(
+                    'y',
+                    dist.MultivariateNormal(loc=intercept + mu_t_expanded.reshape((-1, self.num_horizons), scale_tril=jnp.sqrt(sigma_eps)*Sigma_eps_h_chol)),
+                    obs=y)
+            else : 
+                loc_mu = intercept + mu_t_expanded[non_nan_inds].reshape((-1, self.num_horizons))
+                #scale_tril_mu =Sigma_th_reshape[non_nan_inds].reshape((-1, self.num_horizons, self.num_horizons))
+                numpyro.sample(
+                    'y',
+                    dist.MultivariateNormal(loc=loc_mu, scale_tril=jnp.sqrt(sigma_eps)*Sigma_eps_h_chol),
+                    obs = y[non_nan_inds].reshape((-1, self.num_horizons)))
 
-        if nan_inds is None:
-            numpyro.sample(
-                'y',
-                dist.Normal(jnp.reshape(intercept + mu_t, (-1,)), jnp.sqrt(jnp.exp(log_sigma_eps))),
-                obs = y)
-        else:
-            numpyro.sample(
-                'y',
-                dist.Normal(intercept + mu_t[non_nan_inds, 0], jnp.sqrt(jnp.exp(log_sigma_eps))),
-                obs = y[non_nan_inds])
+        
     
         #numpyro.sample(
         #    'y',
