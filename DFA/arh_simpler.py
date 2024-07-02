@@ -126,15 +126,15 @@ class ARHDFA():
         
         # intercept for observation model, series-specific if requested
         # arranged as row vector for later broadcasting across timesteps
-        if self.intercept_by_series:
-            intercept_shape = (1, self.num_series)
-        else:
-            intercept_shape = (1,)
+        # if self.intercept_by_series:
+        #     intercept_shape = (1, self.num_series)
+        # else:
+        #     intercept_shape = (1,)
 
         intercept = numpyro.sample(
             'intercept',
-            ImproperUniform(constraints.ordered_vector, (),
-            event_shape=intercept_shape))
+            dist.ImproperUniform(constraints.ordered_vector, (),
+            event_shape=(1,)))
 
         # ar coefficients, shared across latent factors
         if self.ar_constraint == '[-1,1]':
@@ -145,18 +145,18 @@ class ARHDFA():
             'phi',
             dist.Uniform(phi_l, phi_u),
             sample_shape=(1, self.p))
-        # phi0 = intercept*(1-jnp.sum(phi))
         
         # mean (ARVar_mu) and ar coefficients (alpha) of the variance of the error term in the latent factor analysis
-        if self.ar_var_constraint == '[-1,1]':
-            alpha_l, alpha_u = (-1, 1)
-        elif self.ar_var_constraint == '[0,1]':
-            alpha_l, alpha_u = (0, 1)
-        ARVar_mu = numpyro.sample(
-            'ARVar_mu',
-            dist.Normal(0,1),
-            sample_shape=(1, 1)
-        )
+        # log_ARVar_mu = numpyro.sample(
+        #     'log_ARVar_mu',
+        #     dist.Normal(0,1),
+        #     sample_shape=(1, 1)
+        # )
+        
+        # if self.ar_var_constraint == '[-1,1]':
+        #     alpha_l, alpha_u = (-1, 1)
+        # elif self.ar_var_constraint == '[0,1]':
+        #     alpha_l, alpha_u = (0, 1)
         # alpha = numpyro.sample(
         #     'alpha',
         #     dist.Uniform(alpha_l, alpha_u),
@@ -170,65 +170,83 @@ class ARHDFA():
             dist.Normal(0, 1),
             sample_shape=(self.p, 1))
         
-        log_sigma_eta_0 = numpyro.sample(
-            'log_sigma_eta_0',
-            dist.Normal(1),
-            sample_shape=(self.q, 1))
-        
-        log_sigma_eps = numpyro.sample(
-            'log_sigma_eps',
-            dist.Normal(1),
-            sample_shape=(1,))
+        # log_sigma_eta_0 = numpyro.sample(
+        #     'log_sigma_eta_0',
+        #     dist.Normal(0, 1),
+        #     sample_shape=(self.q, 1))
         
         # The variance of innovations in the AR process for the variance of the error term in the latent factor analysis
-        sigma_nu = numpyro.sample(
-            'sigma_nu',
-            dist.HalfNormal(1),
-            sample_shape=(1,)
-        )
+        # sigma_nu = numpyro.sample(
+        #     'sigma_nu',
+        #     dist.HalfNormal(1),
+        #     sample_shape=(1,)
+        # )
         
         #get error variance of latent factors from AR(q) process
-        def transition_ARvar(log_sigma_eta_prev, _):
-            '''
-            ARvar function for use with scan
+        # def transition_ARvar(log_sigma_eta_prev, _):
+        #     '''
+        #     ARvar function for use with scan
             
-            Parameters
-            ----------
-            log_sigma_eta_prev: array of shape (q, 1)
-                error variance of the q time steps before time t
-                the first row contains error variance of factor values for time t-1
-            _: ignored, corresponds to integer time step value
+        #     Parameters
+        #     ----------
+        #     log_sigma_eta_prev: array of shape (q, 1)
+        #         error variance of the q time steps before time t
+        #         the first row contains error variance of factor values for time t-1
+        #     _: ignored, corresponds to integer time step value
             
-            Returns
-            -------
-            log_sigma_eta: array of shape (q, 1)
-                updated error variance of the q time steps ending at time t
-                the first row contains error variance of factor values for time t
-            log_sigma_eta_tt: array of shape (1,1)
-                error variance at time t
-            '''
+        #     Returns
+        #     -------
+        #     log_sigma_eta: array of shape (q, 1)
+        #         updated error variance of the q time steps ending at time t
+        #         the first row contains error variance of factor values for time t
+        #     log_sigma_eta_tt: array of shape (1,1)
+        #         error variance at time t
+        #     '''
 
-            # calculate the mean for the error variance of the factors at time t, shape (1, 1)
-            log_sigma_mu_t = (jnp.matmul(alpha, log_sigma_eta_prev) + alpha0)
+        #     # calculate the mean for the error variance of the factors at time t, shape (1, 1)
+        #     log_sigma_mu_t = (jnp.matmul(alpha, log_sigma_eta_prev) + alpha0)
 
-            # sample variances at time t, shape (1, 1)
-            log_sigma_eta = numpyro.sample('log_sigma_eta', dist.Normal(log_sigma_mu_t, sigma_nu))
-            # updated variances for the q time steps ending at time t
-            # shape (q, 1), first row is for time t
-            log_sigma_eta_tt = jnp.concatenate((log_sigma_eta, log_sigma_eta_prev[:-1, :]), axis=0)
+        #     # sample variances at time t, shape (1, 1)
+        #     log_sigma_eta = numpyro.sample('log_sigma_eta', dist.Normal(log_sigma_mu_t, sigma_nu))
+        #     # updated variances for the q time steps ending at time t
+        #     # shape (q, 1), first row is for time t
+        #     log_sigma_eta_tt = jnp.concatenate((log_sigma_eta, log_sigma_eta_prev[:-1, :]), axis=0)
 
-            return log_sigma_eta_tt, log_sigma_eta[0, :]
+        #     return log_sigma_eta_tt, log_sigma_eta[0, :]
         
         
         timesteps = jnp.arange(self.num_timesteps)
         
         # standard deviation of innovations in AR process for latent factors (num_timepoints, 1)
-        if self.sigma_time == 'constant':
+        # if self.sigma_time == 'constant':
+            # print('constant sigma_time')
             # log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(ARVar_mu, jnp.sqrt((sigma_nu**2/(1-jnp.sum(alpha**2))))))
-            log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(ARVar_mu, sigma_nu))
-        elif self.sigma_time == 'AR':
-             _, log_sigma_eta_t = scan(transition_ARvar, log_sigma_eta_0, timesteps)
-
+            # log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(log_ARVar_mu, sigma_nu))
+        # log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(0, 1 + sigma_nu))
+        log_sigma_eta_t = numpyro.sample('log_sigma_eta_t', dist.Normal(0, 1))
+        # elif self.sigma_time == 'AR':
+        #      _, log_sigma_eta_t = scan(transition_ARvar, log_sigma_eta_0, timesteps)
+        
+        a_sigma_eps = numpyro.sample(
+            'a_sigma_eps',
+            dist.Normal(0, 0.1)
+        )
+        b_sigma_eps = numpyro.sample(
+            'b_sigma_eps',
+            dist.Normal(1, 0.1)
+        )
+        # log_sigma_eps = a_sigma_eps + b_sigma_eps * log_sigma_eta_t
+        log_sigma_eps = numpyro.sample(
+            'log_sigma_eps',
+            dist.Normal(a_sigma_eps + b_sigma_eps * log_sigma_eta_t, 0.1))
+        # log_sigma_eps = numpyro.deterministic(
+        #     'log_sigma_eps',
+        #     log_sigma_eps
+        # )
+        # log_sigma_eps = numpyro.sample(
+        #     'log_sigma_eps',
+        #     dist.Normal(0, 1))
+        
         # get AR(p) process
         def transition_AR(points_prev, timepoint):
             '''
@@ -248,33 +266,34 @@ class ARHDFA():
                 the first row contains y values for time t
             '''
             # calculate the mean for the factors at time t, shape (1, 1)
-            m_t = numpyro.sample('m_t', dist.Normal(jnp.matmul(phi, points_prev), jnp.sqrt(jnp.exp(log_sigma_eta_t))))
+            # raw_m_t = numpyro.sample('raw_m_t', dist.Normal(0, 1))
+            # m_t = jnp.matmul(phi, points_prev) + jnp.exp(log_sigma_eta_t) * raw_m_t
+            # numpyro.deterministic('m_t', m_t)
+            m_t = numpyro.sample(
+                'm_t', dist.Normal(jnp.matmul(phi, points_prev), jnp.exp(log_sigma_eta_t)))
             mu_t = jnp.concatenate((m_t, points_prev[:-1, :]), axis=0)
             return mu_t, m_t[0,:]
         
         # scan over time steps; latent factors shape is (num_timepoints, 1)
         _, m_t = scan(transition_AR, y_0, timesteps)
+        # print("m_t shape")
+        # print(m_t.shape)
+        # print("m_t slice shape")
+        # print(m_t.reshape(self.num_timesteps, 1, 1)[non_nan_inds].shape)
         
-        # indicate nan values, and replace with 0
-        # if y is not None:
-        #     y_impute = numpyro.param('y_impute', jnp.zeros(num_nans))
-        #     numpyro.deterministic('y_impute_det', y_impute)
-        #     y = y.at[nan_inds].set(y_impute)
-        
-        # numpyro.sample(
-        #     'y',
-        #     dist.Normal(jnp.reshape(intercept + m_t, (-1,)), jnp.exp(log_sigma_eps)),
-        #     obs = y)
-        if nan_inds is None:
-            numpyro.sample(
-                'y',
-                dist.Normal(jnp.reshape(intercept + m_t, (-1,)), jnp.sqrt(jnp.exp(log_sigma_eta_t))),
-                obs = y)
-        else:
-            numpyro.sample(
-                'y',
-                dist.Normal(intercept + m_t[non_nan_inds, 0], jnp.sqrt(jnp.exp(log_sigma_eta_t))),
-                obs = y[non_nan_inds])
+        # observation process
+        # if nan_inds is None:
+        #     print("no nan inds")
+        #     numpyro.sample(
+        #         'y',
+        #         dist.Normal(jnp.reshape(intercept + m_t, (-1,)), jnp.exp(log_sigma_eps)),
+        #         obs = y)
+        # else:
+        # print("nan inds")
+        numpyro.sample(
+            'y',
+            dist.Normal(intercept + m_t.reshape(self.num_timesteps, 1, 1)[non_nan_inds], jnp.exp(log_sigma_eps)),
+            obs = y[non_nan_inds])
     
     
     def fit(self, y, rng_key, num_warmup=1000, num_samples=1000, num_chains=1,thinning=1,
